@@ -8,4 +8,5 @@ public record SsdidError(string Code, string Message, int? HttpStatus = null)
     public static SsdidError Forbidden(string message) => new("forbidden", message, 403);
     public static SsdidError Conflict(string message) => new("conflict", message, 409);
     public static SsdidError Internal(string message) => new("internal", message, 500);
+    public static SsdidError ServiceUnavailable(string message) => new("service_unavailable", message, 503);
 }
