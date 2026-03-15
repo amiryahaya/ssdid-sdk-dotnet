@@ -27,7 +27,7 @@ public class ServerRegistrationService(
 
     public Task StopAsync(CancellationToken ct)
     {
-        _cts?.Cancel();
+        try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
         _cts?.Dispose();
         return Task.CompletedTask;
     }

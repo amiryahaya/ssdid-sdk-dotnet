@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Ssdid.Sdk.Server.Tests" />
+    <InternalsVisibleTo Include="SsdidDrive.Api.Tests" />
   </ItemGroup>
 
   <ItemGroup>
