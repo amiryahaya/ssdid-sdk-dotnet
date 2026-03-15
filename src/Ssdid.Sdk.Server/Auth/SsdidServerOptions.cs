@@ -1,3 +1,6 @@
+using Ssdid.Sdk.Server.Encoding;
+using Ssdid.Sdk.Server.Session;
+
 namespace Ssdid.Sdk.Server.Auth;
 
 /// <summary>
@@ -5,6 +8,28 @@ namespace Ssdid.Sdk.Server.Auth;
 /// </summary>
 public class SsdidServerOptions
 {
+    /// <summary>
+    /// File path for persisted server identity (DID + key pair).
+    /// Default: "data/server-identity.json".
+    /// </summary>
+    public string IdentityPath { get; set; } = "data/server-identity.json";
+
+    /// <summary>
+    /// W3C verification method type for the server's key pair.
+    /// Default: "Ed25519VerificationKey2020".
+    /// </summary>
+    public string Algorithm { get; set; } = "Ed25519VerificationKey2020";
+
+    /// <summary>
+    /// Base URL of the SSDID DID Registry.
+    /// </summary>
+    public string RegistryUrl { get; set; } = SsdidEncoding.DefaultRegistryUrl;
+
+    /// <summary>
+    /// Session and challenge TTL options.
+    /// </summary>
+    public SessionStoreOptions Sessions { get; set; } = new();
+
     /// <summary>
     /// Previous server identities for key rotation support.
     /// Keys issued by rotated identities remain valid until their credential expires.
