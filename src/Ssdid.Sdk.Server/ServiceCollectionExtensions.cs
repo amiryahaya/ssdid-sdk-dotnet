@@ -29,11 +29,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICryptoProvider, EcdsaProvider>();
         services.AddSingleton<CryptoProviderFactory>();
 
-        // Identity
+        // Key Store (default: file-based, can be overridden before calling AddSsdidServer)
+        if (!services.Any(d => d.ServiceType == typeof(IKeyStore)))
+        {
+            services.AddSingleton<IKeyStore>(new FileKeyStore(options.IdentityPath));
+        }
+
+        // Identity (loaded via key store)
         services.AddSingleton<SsdidIdentity>(sp =>
         {
             var cryptoFactory = sp.GetRequiredService<CryptoProviderFactory>();
-            return SsdidIdentity.LoadOrCreate(options.IdentityPath, options.Algorithm, cryptoFactory);
+            var keyStore = sp.GetRequiredService<IKeyStore>();
+            var identity = keyStore.LoadOrCreate(options.Algorithm, cryptoFactory);
+            identity.SetKeyStore(keyStore);
+            return identity;
         });
 
         // Registry
@@ -54,6 +63,45 @@ public static class ServiceCollectionExtensions
         // DID registration on startup
         services.AddHostedService<ServerRegistrationService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Use container secrets (Podman/Docker/Kubernetes) for server identity storage.
+    /// Call BEFORE AddSsdidServer().
+    ///
+    /// Example:
+    ///   builder.Services.AddSsdidSecretKeyStore("/run/secrets/ssdid-identity");
+    ///   builder.Services.AddSsdidServer(...);
+    /// </summary>
+    public static IServiceCollection AddSsdidSecretKeyStore(
+        this IServiceCollection services,
+        string secretPath)
+    {
+        // Remove any existing key store registration
+        var existing = services.Where(d => d.ServiceType == typeof(IKeyStore)).ToList();
+        foreach (var d in existing) services.Remove(d);
+
+        services.AddSingleton<IKeyStore>(new SecretKeyStore(secretPath));
+        return services;
+    }
+
+    /// <summary>
+    /// Use an environment variable for server identity storage.
+    /// Call BEFORE AddSsdidServer().
+    ///
+    /// Example:
+    ///   builder.Services.AddSsdidEnvKeyStore("SSDID_IDENTITY_JSON");
+    ///   builder.Services.AddSsdidServer(...);
+    /// </summary>
+    public static IServiceCollection AddSsdidEnvKeyStore(
+        this IServiceCollection services,
+        string envVarName = "SSDID_IDENTITY_JSON")
+    {
+        var existing = services.Where(d => d.ServiceType == typeof(IKeyStore)).ToList();
+        foreach (var d in existing) services.Remove(d);
+
+        services.AddSingleton<IKeyStore>(SecretKeyStore.FromEnvironment(envVarName));
         return services;
     }
 }

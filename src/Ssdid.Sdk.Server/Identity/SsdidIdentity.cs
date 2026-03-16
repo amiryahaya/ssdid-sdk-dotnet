@@ -101,17 +101,29 @@ public class SsdidIdentity
         };
     }
 
+    /// <summary>
+    /// Optional key store for delegated signing. When set, Sign operations
+    /// go through the key store (which may use HSM/secrets) instead of
+    /// using the in-memory private key directly.
+    /// </summary>
+    private IKeyStore? _keyStore;
+
+    public void SetKeyStore(IKeyStore keyStore) => _keyStore = keyStore;
+
     public string SignChallenge(string challenge)
     {
-        if (_cryptoFactory is null)
-            throw new InvalidOperationException("CryptoFactory not set on SsdidIdentity");
         var messageBytes = System.Text.Encoding.UTF8.GetBytes(challenge);
-        var signature = _cryptoFactory.Sign(AlgorithmType, messageBytes, PrivateKey);
+        var signature = SignRaw(messageBytes);
         return SsdidEncoding.MultibaseEncode(signature);
     }
 
     public byte[] SignRaw(byte[] message)
     {
+        // Prefer key store signing (HSM/secrets path)
+        if (_keyStore is not null && _cryptoFactory is not null)
+            return _keyStore.Sign(message, AlgorithmType, _cryptoFactory);
+
+        // Fallback to direct in-memory signing
         if (_cryptoFactory is null)
             throw new InvalidOperationException("CryptoFactory not set on SsdidIdentity");
         return _cryptoFactory.Sign(AlgorithmType, message, PrivateKey);
