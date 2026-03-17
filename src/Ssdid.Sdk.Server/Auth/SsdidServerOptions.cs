@@ -26,6 +26,23 @@ public class SsdidServerOptions
     public string RegistryUrl { get; set; } = SsdidEncoding.DefaultRegistryUrl;
 
     /// <summary>
+    /// Human-readable service name included in issued VCs (e.g., "SSDID Drive").
+    /// Wallets display this in their connected services list.
+    /// </summary>
+    public string ServiceName { get; set; } = "";
+
+    /// <summary>
+    /// Public URL of this service included in issued VCs (e.g., "https://drive.ssdid.my").
+    /// Wallets display this alongside the service name.
+    /// </summary>
+    public string ServiceUrl { get; set; } = "";
+
+    /// <summary>
+    /// Short service identifier used in VC credentialSubject (e.g., "drive").
+    /// </summary>
+    public string ServiceId { get; set; } = "drive";
+
+    /// <summary>
     /// Session and challenge TTL options.
     /// </summary>
     public SessionStoreOptions Sessions { get; set; } = new();

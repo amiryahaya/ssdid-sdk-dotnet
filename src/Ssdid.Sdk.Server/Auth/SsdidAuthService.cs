@@ -17,6 +17,9 @@ public class SsdidAuthService
     private readonly CryptoProviderFactory _cryptoFactory;
     private readonly ILogger<SsdidAuthService> _logger;
     private readonly IReadOnlyDictionary<string, (byte[] PublicKey, string AlgorithmType, string KeyId)> _trustedKeys;
+    private readonly string _serviceId;
+    private readonly string _serviceName;
+    private readonly string _serviceUrl;
 
     private static readonly JsonSerializerOptions VcSerializerOptions = new() { WriteIndented = false };
 
@@ -34,6 +37,9 @@ public class SsdidAuthService
         _cryptoFactory = cryptoFactory;
         _logger = logger;
         _trustedKeys = BuildTrustedKeys(identity, options.Value);
+        _serviceId = options.Value.ServiceId;
+        _serviceName = options.Value.ServiceName;
+        _serviceUrl = options.Value.ServiceUrl;
     }
 
     private static IReadOnlyDictionary<string, (byte[] PublicKey, string AlgorithmType, string KeyId)> BuildTrustedKeys(
@@ -145,6 +151,23 @@ public class SsdidAuthService
 
     public void RevokeSession(string token) => _sessionStore.DeleteSession(token);
 
+    private Dictionary<string, object> BuildCredentialSubject(string subjectDid, string issuanceDate)
+    {
+        var subject = new Dictionary<string, object>
+        {
+            ["id"] = subjectDid,
+            ["service"] = _serviceId,
+            ["registeredAt"] = issuanceDate
+        };
+
+        if (!string.IsNullOrEmpty(_serviceName))
+            subject["serviceName"] = _serviceName;
+        if (!string.IsNullOrEmpty(_serviceUrl))
+            subject["serviceUrl"] = _serviceUrl;
+
+        return subject;
+    }
+
     private static string BuildSigningInput(
         string vcId, string issuer, string issuanceDate,
         string expirationDate, string subjectDid, string service)
@@ -161,7 +184,7 @@ public class SsdidAuthService
         var expirationDate = now.AddDays(30).ToString("o");
 
         var signingInput = BuildSigningInput(
-            vcId, _identity.Did, issuanceDate, expirationDate, subjectDid, "drive");
+            vcId, _identity.Did, issuanceDate, expirationDate, subjectDid, _serviceId);
         var proofBytes = _cryptoFactory.Sign(
             _identity.AlgorithmType,
             System.Text.Encoding.UTF8.GetBytes(signingInput),
@@ -169,27 +192,23 @@ public class SsdidAuthService
 
         var proofType = CryptoProviderFactory.GetProofType(_identity.AlgorithmType);
 
-        var vc = new
+        // Use Dictionary to preserve "@context" key (C# anonymous @context serializes as "context")
+        var vc = new Dictionary<string, object>
         {
-            @context = new[] { "https://www.w3.org/2018/credentials/v1" },
-            id = vcId,
-            type = new[] { "VerifiableCredential", "SsdidRegistrationCredential" },
-            issuer = _identity.Did,
-            issuanceDate,
-            expirationDate,
-            credentialSubject = new
+            ["@context"] = new[] { "https://www.w3.org/2018/credentials/v1" },
+            ["id"] = vcId,
+            ["type"] = new[] { "VerifiableCredential", "SsdidRegistrationCredential" },
+            ["issuer"] = _identity.Did,
+            ["issuanceDate"] = issuanceDate,
+            ["expirationDate"] = expirationDate,
+            ["credentialSubject"] = BuildCredentialSubject(subjectDid, issuanceDate),
+            ["proof"] = new Dictionary<string, object>
             {
-                id = subjectDid,
-                service = "drive",
-                registeredAt = issuanceDate
-            },
-            proof = new
-            {
-                type = proofType,
-                created = now.ToString("o"),
-                verificationMethod = _identity.KeyId,
-                proofPurpose = "assertionMethod",
-                proofValue = SsdidEncoding.MultibaseEncode(proofBytes)
+                ["type"] = proofType!,
+                ["created"] = now.ToString("o"),
+                ["verificationMethod"] = _identity.KeyId,
+                ["proofPurpose"] = "assertionMethod",
+                ["proofValue"] = SsdidEncoding.MultibaseEncode(proofBytes)
             }
         };
 
