@@ -10,7 +10,7 @@ public class SsdidIdentity
     public string KeyId { get; init; } = default!;
     public byte[] PublicKey { get; init; } = default!;
     public byte[] PrivateKey { get; init; } = default!;
-    public string AlgorithmType { get; init; } = "KazSignVerificationKey2024";
+    public string AlgorithmType { get; init; } = "MlDsa44VerificationKey2024";
     public bool AlgorithmMismatch { get; init; }
 
     private CryptoProviderFactory? _cryptoFactory;
