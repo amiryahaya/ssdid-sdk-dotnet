@@ -59,6 +59,9 @@ public class SsdidAuthService
 
     public async Task<Result<RegisterResponse>> HandleRegister(string clientDid, string clientKeyId)
     {
+        if (!SsdidDid.IsValid(clientDid))
+            return SsdidError.BadRequest("Invalid DID format");
+
         var didDoc = await _registryClient.ResolveDid(clientDid);
         if (didDoc is null)
         {
@@ -75,6 +78,9 @@ public class SsdidAuthService
 
     public async Task<Result<VerifyResponse>> HandleVerifyResponse(string clientDid, string clientKeyId, string signedChallenge)
     {
+        if (!SsdidDid.IsValid(clientDid))
+            return SsdidError.BadRequest("Invalid DID format");
+
         var entry = _sessionStore.ConsumeChallenge(clientDid, "registration");
         if (entry is null)
         {
