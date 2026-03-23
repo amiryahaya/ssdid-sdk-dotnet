@@ -40,10 +40,10 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
 
     // ── Challenges ──
 
-    public void CreateChallenge(string did, string purpose, string challenge, string keyId)
+    public void CreateChallenge(string did, string purpose, string challenge, string keyId, string? domain = null)
     {
         var key = $"{ChallengePrefix}{did}:{purpose}";
-        var entry = new ChallengeData(challenge, keyId, DateTimeOffset.UtcNow);
+        var entry = new ChallengeData(challenge, keyId, DateTimeOffset.UtcNow, domain);
         var json = JsonSerializer.Serialize(entry);
 
         try
@@ -82,7 +82,7 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
                 return null;
 
             // Redis enforces the TTL set during StringSet — no manual expiry check needed.
-            return new ChallengeEntry(data.Challenge, data.KeyId, data.CreatedAt);
+            return new ChallengeEntry(data.Challenge, data.KeyId, data.CreatedAt, data.Domain);
         }
         catch (RedisConnectionException ex)
         {
@@ -338,7 +338,7 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
 
     // ── Internal DTOs ──
 
-    private record ChallengeData(string Challenge, string KeyId, DateTimeOffset CreatedAt);
+    private record ChallengeData(string Challenge, string KeyId, DateTimeOffset CreatedAt, string? Domain = null);
     private record SessionData(string Did, DateTimeOffset CreatedAt);
     private record SubscriberSecretData(string Secret, DateTimeOffset CreatedAt);
 }

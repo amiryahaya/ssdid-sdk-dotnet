@@ -24,6 +24,7 @@ public class SsdidAuthService
     private readonly string _serviceId;
     private readonly string _serviceName;
     private readonly string _serviceUrl;
+    private readonly string _serviceDomain;
 
     private static readonly JsonSerializerOptions VcSerializerOptions = new() { WriteIndented = false };
 
@@ -48,6 +49,7 @@ public class SsdidAuthService
         _serviceId = options.Value.ServiceId;
         _serviceName = options.Value.ServiceName;
         _serviceUrl = options.Value.ServiceUrl;
+        _serviceDomain = options.Value.ServiceDomain;
     }
 
     private static IReadOnlyDictionary<string, (byte[] PublicKey, string AlgorithmType, string KeyId)> BuildTrustedKeys(
@@ -79,7 +81,7 @@ public class SsdidAuthService
 
         var challenge = SsdidEncoding.GenerateChallenge();
         var serverSignature = _identity.SignChallenge(challenge);
-        _sessionStore.CreateChallenge(clientDid, "registration", challenge, clientKeyId);
+        _sessionStore.CreateChallenge(clientDid, "registration", challenge, clientKeyId, string.IsNullOrEmpty(_serviceDomain) ? null : _serviceDomain);
 
         _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
             SsdidAuditEventType.ChallengeIssued, clientDid, DateTimeOffset.UtcNow,
@@ -104,6 +106,14 @@ public class SsdidAuthService
         {
             _logger.LogWarning("Verify failed: key ID mismatch for {Did}", clientDid);
             return SsdidError.Unauthorized("Key ID does not match the pending challenge");
+        }
+
+        if (!string.IsNullOrEmpty(entry.Domain) && !string.IsNullOrEmpty(_serviceDomain)
+            && !string.Equals(entry.Domain, _serviceDomain, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Verify failed: domain mismatch for {Did} (expected {Expected}, got {Actual})",
+                clientDid, _serviceDomain, entry.Domain);
+            return SsdidError.Unauthorized("Challenge domain mismatch — possible cross-service replay");
         }
 
         var didDoc = await _registryClient.ResolveDid(clientDid);

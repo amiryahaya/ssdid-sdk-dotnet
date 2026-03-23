@@ -3,14 +3,14 @@ namespace Ssdid.Sdk.Server.Session;
 /// <summary>
 /// Returned by <see cref="ISessionStore.ConsumeChallenge"/> with the original challenge payload.
 /// </summary>
-public record ChallengeEntry(string Challenge, string KeyId, DateTimeOffset CreatedAt);
+public record ChallengeEntry(string Challenge, string KeyId, DateTimeOffset CreatedAt, string? Domain = null);
 
 /// <summary>
 /// Manages authentication challenges and session lifecycle.
 /// </summary>
 public interface ISessionStore
 {
-    void CreateChallenge(string did, string purpose, string challenge, string keyId);
+    void CreateChallenge(string did, string purpose, string challenge, string keyId, string? domain = null);
     ChallengeEntry? ConsumeChallenge(string did, string purpose);
     string? CreateSession(string did);
     string? GetSession(string token);

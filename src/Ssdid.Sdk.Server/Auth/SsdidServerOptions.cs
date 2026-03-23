@@ -38,6 +38,13 @@ public class SsdidServerOptions
     public string ServiceUrl { get; set; } = "";
 
     /// <summary>
+    /// Domain bound to authentication challenges. When set, challenge verification
+    /// rejects proofs created for a different domain (prevents cross-service replay).
+    /// Should match the service's public hostname (e.g., "drive.ssdid.my").
+    /// </summary>
+    public string ServiceDomain { get; set; } = "";
+
+    /// <summary>
     /// Short service identifier used in VC credentialSubject (e.g., "drive").
     /// </summary>
     public string ServiceId { get; set; } = "drive";

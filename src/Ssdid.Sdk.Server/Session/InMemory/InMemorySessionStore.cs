@@ -31,10 +31,10 @@ public class InMemorySessionStore : ISessionStore, ISseNotificationBus, IHostedS
 
     // ── Challenges ──
 
-    public void CreateChallenge(string did, string purpose, string challenge, string keyId)
+    public void CreateChallenge(string did, string purpose, string challenge, string keyId, string? domain = null)
     {
         var key = $"{did}:{purpose}";
-        _challenges[key] = new ChallengeEntry(challenge, keyId, _clock.GetUtcNow());
+        _challenges[key] = new ChallengeEntry(challenge, keyId, _clock.GetUtcNow(), domain);
     }
 
     public ChallengeEntry? ConsumeChallenge(string did, string purpose)
