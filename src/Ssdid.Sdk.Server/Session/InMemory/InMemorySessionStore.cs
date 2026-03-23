@@ -54,11 +54,13 @@ public class InMemorySessionStore : ISessionStore, ISseNotificationBus, IHostedS
     private class SessionEntry
     {
         public string Did { get; }
+        public string? DeviceFingerprint { get; }
         private long _lastAccessedTicks;
 
-        public SessionEntry(string did, DateTimeOffset lastAccessed)
+        public SessionEntry(string did, DateTimeOffset lastAccessed, string? deviceFingerprint = null)
         {
             Did = did;
+            DeviceFingerprint = deviceFingerprint;
             _lastAccessedTicks = lastAccessed.UtcTicks;
         }
 
@@ -69,7 +71,7 @@ public class InMemorySessionStore : ISessionStore, ISseNotificationBus, IHostedS
             Interlocked.Exchange(ref _lastAccessedTicks, now.UtcTicks);
     }
 
-    public string? CreateSession(string did)
+    public string? CreateSession(string did, string? deviceFingerprint = null)
     {
         // Pre-increment to reserve a slot, then roll back if TryAdd fails.
         var count = Interlocked.Increment(ref _sessionCount);
@@ -81,7 +83,7 @@ public class InMemorySessionStore : ISessionStore, ISseNotificationBus, IHostedS
 
         var token = SsdidEncoding.GenerateChallenge();
 
-        if (_sessions.TryAdd(token, new SessionEntry(did, _clock.GetUtcNow())))
+        if (_sessions.TryAdd(token, new SessionEntry(did, _clock.GetUtcNow(), deviceFingerprint)))
             return token;
 
         // Token collision (astronomically unlikely with 32 random bytes) — release slot.
@@ -105,6 +107,11 @@ public class InMemorySessionStore : ISessionStore, ISseNotificationBus, IHostedS
         // Slide the expiration window forward on each access.
         entry.Touch(now);
         return entry.Did;
+    }
+
+    public string? GetSessionDeviceFingerprint(string token)
+    {
+        return _sessions.TryGetValue(token, out var entry) ? entry.DeviceFingerprint : null;
     }
 
     public void DeleteSession(string token)

@@ -21,6 +21,23 @@ public class SsdidAuthMiddleware(RequestDelegate next, ILogger<SsdidAuthMiddlewa
             var did = sessionStore.GetSession(token);
             if (did is not null)
             {
+                // Check device binding if fingerprint was stored at session creation
+                var storedFingerprint = sessionStore.GetSessionDeviceFingerprint(token);
+                if (storedFingerprint is not null)
+                {
+                    var currentFingerprint = Session.DeviceFingerprint.Compute(
+                        context.Request.Headers.UserAgent.FirstOrDefault(),
+                        context.Request.Headers[Session.DeviceFingerprint.DeviceIdHeader].FirstOrDefault());
+
+                    if (!string.Equals(storedFingerprint, currentFingerprint, StringComparison.Ordinal))
+                    {
+                        logger.LogWarning("Device fingerprint mismatch for session — possible token theft");
+                        context.Response.StatusCode = 401;
+                        await context.Response.WriteAsJsonAsync(new { error = "Session not valid for this device" });
+                        return;
+                    }
+                }
+
                 context.Items[UserKey] = new SsdidUser(did, token);
             }
             else

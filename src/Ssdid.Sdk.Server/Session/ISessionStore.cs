@@ -12,8 +12,9 @@ public interface ISessionStore
 {
     void CreateChallenge(string did, string purpose, string challenge, string keyId, string? domain = null);
     ChallengeEntry? ConsumeChallenge(string did, string purpose);
-    string? CreateSession(string did);
+    string? CreateSession(string did, string? deviceFingerprint = null);
     string? GetSession(string token);
+    string? GetSessionDeviceFingerprint(string token);
     void DeleteSession(string token);
 
     /// <summary>

@@ -181,9 +181,9 @@ public class SsdidAuthService
         return subjectDid;
     }
 
-    public Result<AuthenticateResponse> CreateAuthenticatedSession(string did)
+    public Result<AuthenticateResponse> CreateAuthenticatedSession(string did, string? deviceFingerprint = null)
     {
-        var sessionToken = _sessionStore.CreateSession(did);
+        var sessionToken = _sessionStore.CreateSession(did, deviceFingerprint);
         if (sessionToken is null)
         {
             _logger.LogWarning("Authentication failed: session limit reached");

@@ -93,11 +93,11 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
 
     // ── Sessions ──
 
-    public string? CreateSession(string did)
+    public string? CreateSession(string did, string? deviceFingerprint = null)
     {
         var token = SsdidEncoding.GenerateChallenge();
         var key = $"{SessionPrefix}{token}";
-        var entry = new SessionData(did, DateTimeOffset.UtcNow);
+        var entry = new SessionData(did, DateTimeOffset.UtcNow, deviceFingerprint);
         var json = JsonSerializer.Serialize(entry);
 
         try
@@ -135,6 +135,23 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
         catch (RedisConnectionException ex)
         {
             _logger.LogError(ex, "Redis unavailable for GetSession");
+            return null;
+        }
+    }
+
+    public string? GetSessionDeviceFingerprint(string token)
+    {
+        var key = $"{SessionPrefix}{token}";
+        try
+        {
+            var json = _cache.GetString(key);
+            if (json is null) return null;
+            var data = JsonSerializer.Deserialize<SessionData>(json);
+            return data?.DeviceFingerprint;
+        }
+        catch (RedisConnectionException ex)
+        {
+            _logger.LogError(ex, "Redis unavailable for GetSessionDeviceFingerprint");
             return null;
         }
     }
@@ -339,6 +356,6 @@ public class RedisSessionStore : ISessionStore, ISseNotificationBus
     // ── Internal DTOs ──
 
     private record ChallengeData(string Challenge, string KeyId, DateTimeOffset CreatedAt, string? Domain = null);
-    private record SessionData(string Did, DateTimeOffset CreatedAt);
+    private record SessionData(string Did, DateTimeOffset CreatedAt, string? DeviceFingerprint = null);
     private record SubscriberSecretData(string Secret, DateTimeOffset CreatedAt);
 }
