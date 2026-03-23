@@ -8,6 +8,7 @@ namespace Ssdid.Sdk.Server.Identity;
 /// Stores server identity as a plaintext JSON file.
 /// Suitable for development only — private key is stored unencrypted on disk.
 /// </summary>
+[Obsolete("FileKeyStore stores keys in plaintext. Use SecretKeyStore or implement IKeyStore with HSM/vault integration for production.")]
 public class FileKeyStore : IKeyStore
 {
     private readonly string _path;

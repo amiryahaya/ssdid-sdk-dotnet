@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Ssdid.Sdk.Server.Audit;
 using Ssdid.Sdk.Server.Crypto;
 using Ssdid.Sdk.Server.Encoding;
 using Ssdid.Sdk.Server.Identity;
 using Ssdid.Sdk.Server.Registry;
+using Ssdid.Sdk.Server.Revocation;
 using Ssdid.Sdk.Server.Session;
 
 namespace Ssdid.Sdk.Server.Auth;
@@ -13,9 +15,11 @@ public class SsdidAuthService
 {
     private readonly SsdidIdentity _identity;
     private readonly ISessionStore _sessionStore;
-    private readonly RegistryClient _registryClient;
+    private readonly IRegistryClient _registryClient;
     private readonly CryptoProviderFactory _cryptoFactory;
     private readonly ILogger<SsdidAuthService> _logger;
+    private readonly ISsdidAuditSink _auditSink;
+    private readonly RevocationChecker? _revocationChecker;
     private readonly IReadOnlyDictionary<string, (byte[] PublicKey, string AlgorithmType, string KeyId)> _trustedKeys;
     private readonly string _serviceId;
     private readonly string _serviceName;
@@ -26,16 +30,20 @@ public class SsdidAuthService
     public SsdidAuthService(
         SsdidIdentity identity,
         ISessionStore sessionStore,
-        RegistryClient registryClient,
+        IRegistryClient registryClient,
         CryptoProviderFactory cryptoFactory,
         IOptions<SsdidServerOptions> options,
-        ILogger<SsdidAuthService> logger)
+        ILogger<SsdidAuthService> logger,
+        ISsdidAuditSink? auditSink = null,
+        RevocationChecker? revocationChecker = null)
     {
         _identity = identity;
         _sessionStore = sessionStore;
         _registryClient = registryClient;
         _cryptoFactory = cryptoFactory;
         _logger = logger;
+        _auditSink = auditSink ?? new NullAuditSink();
+        _revocationChecker = revocationChecker;
         _trustedKeys = BuildTrustedKeys(identity, options.Value);
         _serviceId = options.Value.ServiceId;
         _serviceName = options.Value.ServiceName;
@@ -72,6 +80,10 @@ public class SsdidAuthService
         var challenge = SsdidEncoding.GenerateChallenge();
         var serverSignature = _identity.SignChallenge(challenge);
         _sessionStore.CreateChallenge(clientDid, "registration", challenge, clientKeyId);
+
+        _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+            SsdidAuditEventType.ChallengeIssued, clientDid, DateTimeOffset.UtcNow,
+            new() { ["purpose"] = "registration" }));
 
         return new RegisterResponse(challenge, _identity.Did, _identity.KeyId, serverSignature);
     }
@@ -118,15 +130,31 @@ public class SsdidAuthService
         var credential = IssueCredential(clientDid);
         _logger.LogInformation("Registration verified for {Did}", clientDid);
 
+        _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+            SsdidAuditEventType.DidRegistered, clientDid, DateTimeOffset.UtcNow));
+        _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+            SsdidAuditEventType.CredentialIssued, clientDid, DateTimeOffset.UtcNow));
+
         return new VerifyResponse(credential, clientDid);
     }
 
-    public Result<string> VerifyCredential(JsonElement credential)
+    public async Task<Result<string>> VerifyCredential(JsonElement credential)
     {
         if (!VerifyCredentialOffline(credential))
         {
             _logger.LogWarning("Authentication failed: invalid credential");
             return SsdidError.Unauthorized("Invalid or expired credential");
+        }
+
+        // Check revocation if checker is available
+        if (_revocationChecker is not null)
+        {
+            var revStatus = await _revocationChecker.CheckAsync(credential);
+            if (revStatus == RevocationStatus.Revoked)
+            {
+                _logger.LogWarning("Authentication failed: credential has been revoked");
+                return SsdidError.Unauthorized("Credential has been revoked");
+            }
         }
 
         var subjectDid = credential
@@ -136,6 +164,9 @@ public class SsdidAuthService
 
         if (subjectDid is null)
             return SsdidError.Unauthorized("Credential missing subject DID");
+
+        _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+            SsdidAuditEventType.CredentialVerified, subjectDid, DateTimeOffset.UtcNow));
 
         return subjectDid;
     }
@@ -152,10 +183,20 @@ public class SsdidAuthService
         var serverSignature = _identity.SignChallenge(sessionToken);
         _logger.LogInformation("Authenticated {Did}", did);
 
+        _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+            SsdidAuditEventType.SessionCreated, did, DateTimeOffset.UtcNow));
+
         return new AuthenticateResponse(sessionToken, did, _identity.Did, _identity.KeyId, serverSignature);
     }
 
-    public void RevokeSession(string token) => _sessionStore.DeleteSession(token);
+    public void RevokeSession(string token)
+    {
+        var did = _sessionStore.GetSession(token);
+        _sessionStore.DeleteSession(token);
+        if (did is not null)
+            _ = _auditSink.OnEventAsync(new SsdidAuditEvent(
+                SsdidAuditEventType.SessionRevoked, did, DateTimeOffset.UtcNow));
+    }
 
     private Dictionary<string, object> BuildCredentialSubject(string subjectDid, string issuanceDate)
     {

@@ -10,7 +10,7 @@ namespace Ssdid.Sdk.Server.Registry;
 /// The registry is a DID Document store — it handles CRUD only.
 /// Challenge-response authentication happens directly between clients and this server.
 /// </summary>
-public class RegistryClient(HttpClient httpClient, ILogger<RegistryClient> logger)
+public class RegistryClient(HttpClient httpClient, ILogger<RegistryClient> logger) : IRegistryClient
 {
     /// <summary>
     /// Resolve a DID to its DID Document from the registry.

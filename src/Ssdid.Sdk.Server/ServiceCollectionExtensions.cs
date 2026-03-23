@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Ssdid.Sdk.Server.Audit;
 using Ssdid.Sdk.Server.Auth;
 using Ssdid.Sdk.Server.Crypto;
 using Ssdid.Sdk.Server.Crypto.Providers;
 using Ssdid.Sdk.Server.Identity;
 using Ssdid.Sdk.Server.Registration;
 using Ssdid.Sdk.Server.Registry;
+using Ssdid.Sdk.Server.Revocation;
 using Ssdid.Sdk.Server.Session;
 using Ssdid.Sdk.Server.Session.InMemory;
 
@@ -51,11 +53,21 @@ public static class ServiceCollectionExtensions
             client.BaseAddress = new Uri(options.RegistryUrl);
             client.Timeout = TimeSpan.FromSeconds(15);
         });
+        services.AddSingleton<IRegistryClient>(sp => sp.GetRequiredService<RegistryClient>());
 
         // Session (in-memory default)
         services.AddSingleton<InMemorySessionStore>();
         services.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<InMemorySessionStore>());
         services.AddSingleton<ISseNotificationBus>(sp => sp.GetRequiredService<InMemorySessionStore>());
+
+        // Audit (no-op default — consumers can replace via DI)
+        if (!services.Any(d => d.ServiceType == typeof(ISsdidAuditSink)))
+            services.AddSingleton<ISsdidAuditSink, NullAuditSink>();
+
+        // Revocation
+        services.AddHttpClient<HttpStatusListFetcher>();
+        services.AddSingleton<IStatusListFetcher>(sp => sp.GetRequiredService<HttpStatusListFetcher>());
+        services.AddSingleton<RevocationChecker>();
 
         // Auth
         services.AddScoped<SsdidAuthService>();
