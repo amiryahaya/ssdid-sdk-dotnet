@@ -67,11 +67,9 @@ public class EcdsaProvider : ICryptoProvider
 
     private static ECParameters RecoverParameters(ECCurve curve, byte[] d)
     {
-        using var temp = ECDsa.Create(curve);
-        var fullParams = temp.ExportParameters(true);
-        fullParams.D = d;
-        using var keyed = ECDsa.Create();
-        keyed.ImportParameters(fullParams);
-        return keyed.ExportParameters(true);
+        // Import the bare scalar and let the provider derive the public point.
+        // The previous export→re-import round-trip threw "invalid private key"
+        // under OpenSSL 3 (Linux/CI), though it passed on macOS.
+        return new ECParameters { Curve = curve, D = d };
     }
 }
