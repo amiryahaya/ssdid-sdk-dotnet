@@ -23,4 +23,9 @@
     <PackageReference Include="StackExchange.Redis" Version="2.12.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- GHSA-v5pm-xwqc-g5wc: Microsoft.OpenApi <= 2.7.4 unpatched upstream; suppress
+         until a fixed release ships (mirrors failsulit src/FailSulit.Api). -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
+  </ItemGroup>
 </Project>
